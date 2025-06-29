@@ -28,9 +28,9 @@ def find_weight_spots(diff_matrix, threshold_ratio=0.1, num_weights=3):
     sorted_spots = sorted(zip(spot_values, spots), reverse=True)[:num_weights]
     return [(int(y), int(x), val) for val, (y, x) in sorted_spots], labeled
 
-def get_stats_for_label(diff_matrix, labeled_matrix, label_id):
+def get_stats_for_label(matrix, labeled_matrix, label_id):
     mask = labeled_matrix == label_id
-    values = diff_matrix[mask]
+    values = matrix[mask]
     return np.mean(values), np.max(values)
 
 def classify_files_by_avg(folder_path):
@@ -43,6 +43,17 @@ def classify_files_by_avg(folder_path):
         return csv_files[0], csv_files[1], avgs[0]
     else:
         return csv_files[1], csv_files[0], avgs[1]
+
+def show_debug_plot(mat_diff, spots, folder_name):
+    plt.figure(figsize=(8, 6))
+    plt.imshow(mat_diff, cmap='hot', interpolation='nearest')
+    ys, xs, _ = zip(*spots)
+    plt.scatter(xs, ys, marker='x', color='cyan', s=150, label='Detected weights')
+    plt.title(f"Weight spots in {folder_name}")
+    plt.colorbar(label="Difference")
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
 
 def analyze_sheet(folder_path, debug=False):
     empty_file, weight_file, empty_avg_clean = classify_files_by_avg(folder_path)
@@ -62,14 +73,21 @@ def analyze_sheet(folder_path, debug=False):
 
     for w, (y, x, _) in zip(weights_lbs, sorted_spots):
         label_id = labeled[y, x]
-        mean_val, max_val = get_stats_for_label(mat_diff, labeled, label_id)
-        weight_responses[f"{w}lb_response"] = mean_val
-        weight_responses[f"{w}lb_max"] = max_val
+        # Difference response
+        mean_diff_val, max_diff_val = get_stats_for_label(mat_diff, labeled, label_id)
+        weight_responses[f"{w}lb_response"] = mean_diff_val
+        weight_responses[f"{w}lb_max"] = max_diff_val
+        # Absolute values on weight matrix
+        mean_abs_val, max_abs_val = get_stats_for_label(mat_weight, labeled, label_id)
+        weight_responses[f"{w}lb_avg_val"] = mean_abs_val
+        weight_responses[f"{w}lb_max_val"] = max_abs_val
 
     if debug:
         print(f"Debug info for {Path(folder_path).name}:")
         for w in weights_lbs:
-            print(f"  {w}lb mean: {weight_responses[f'{w}lb_response']:.4e}, max: {weight_responses[f'{w}lb_max']:.4e}")
+            print(f"  {w}lb response: mean={weight_responses[f'{w}lb_response']:.4e}, max={weight_responses[f'{w}lb_max']:.4e}")
+            print(f"  {w}lb value: mean={weight_responses[f'{w}lb_avg_val']:.4e}, max={weight_responses[f'{w}lb_max_val']:.4e}")
+        show_debug_plot(mat_diff, spots, Path(folder_path).name)
 
     return {
         "Mat": Path(folder_path).name,
@@ -87,33 +105,43 @@ def add_mat_slide(prs, row, base_folder):
     layout = prs.slide_layouts[6]
     slide = prs.slides.add_slide(layout)
 
-    rows, cols = 6, 2
-    table = slide.shapes.add_table(rows, cols, Inches(0.5), Inches(1.0), Inches(5.0), Inches(2.5)).table
-    table.columns[0].width = Inches(2)
-    table.columns[1].width = Inches(3)
+    # Table 1: Differences
+    table1 = slide.shapes.add_table(6, 2, Inches(0.5), Inches(0.8), Inches(4.5), Inches(2.2)).table
+    table1.columns[0].width = Inches(2)
+    table1.columns[1].width = Inches(2.5)
+    table1.cell(0, 0).text = "Baseline avg (no weight)"
+    table1.cell(0, 1).text = f"{row['empty_avg_clean']:.2e}"
+    table1.cell(1, 0).text = "20lb: avr / max [response]"
+    table1.cell(1, 1).text = f"{row['20lb_response']:.2e} / {row['20lb_max']:.2e}"
+    table1.cell(2, 0).text = "10lb: avr / max [response]"
+    table1.cell(2, 1).text = f"{row['10lb_response']:.2e} / {row['10lb_max']:.2e}"
+    table1.cell(3, 0).text = "5lb: avr / max [response]"
+    table1.cell(3, 1).text = f"{row['5lb_response']:.2e} / {row['5lb_max']:.2e}"
+    table1.cell(4, 0).text = "Ratio 10lb / 20lb"
+    table1.cell(4, 1).text = f"{row['ratio_10_to_20']:.2f}"
+    table1.cell(5, 0).text = "Ratio 5lb / 20lb"
+    table1.cell(5, 1).text = f"{row['ratio_5_to_20']:.2f}"
 
-    table.cell(0, 0).text = "Baseline avg (no weight)"
-    table.cell(0, 1).text = f"{row['empty_avg_clean']:.2e}"
-    table.cell(1, 0).text = "20lb: mean / max"
-    table.cell(1, 1).text = f"{row['20lb_response']:.2e} / {row['20lb_max']:.2e}"
-    table.cell(2, 0).text = "10lb: mean / max"
-    table.cell(2, 1).text = f"{row['10lb_response']:.2e} / {row['10lb_max']:.2e}"
-    table.cell(3, 0).text = "5lb: mean / max"
-    table.cell(3, 1).text = f"{row['5lb_response']:.2e} / {row['5lb_max']:.2e}"
-    table.cell(4, 0).text = "Ratio 10lb / 20lb"
-    table.cell(4, 1).text = f"{row['ratio_10_to_20']:.2f}"
-    table.cell(5, 0).text = "Ratio 5lb / 20lb"
-    table.cell(5, 1).text = f"{row['ratio_5_to_20']:.2f}"
+    # Table 2: Absolute values
+    table2 = slide.shapes.add_table(3, 2, Inches(0.5), Inches(5.1), Inches(4.5), Inches(1.0)).table
+    table2.columns[0].width = Inches(2)
+    table2.columns[1].width = Inches(2.5)
+    table2.cell(0, 0).text = "20lb value (avg / max)"
+    table2.cell(0, 1).text = f"{row['20lb_avg_val']:.2e} / {row['20lb_max_val']:.2e}"
+    table2.cell(1, 0).text = "10lb value (avg / max)"
+    table2.cell(1, 1).text = f"{row['10lb_avg_val']:.2e} / {row['10lb_max_val']:.2e}"
+    table2.cell(2, 0).text = "5lb value (avg / max)"
+    table2.cell(2, 1).text = f"{row['5lb_avg_val']:.2e} / {row['5lb_max_val']:.2e}"
 
+    # Image
     folder = Path(base_folder) / row["Mat"]
     image_file = folder / row["weight_file"].replace("_rawData.csv", "_heatmap.png")
     if image_file.exists():
-        pic = slide.shapes.add_picture(str(image_file), Inches(6), Inches(0), width=Inches(3))
+        pic = slide.shapes.add_picture(str(image_file), Inches(6), Inches(0.5), width=Inches(3))
         pic.top = prs.slide_height - pic.height
-    else:
-        print(f"Warning: Image not found: {image_file}")
 
-    textbox = slide.shapes.add_textbox(Inches(0.5), prs.slide_height - Inches(0.7), Inches(8), Inches(0.5))
+    # Title
+    textbox = slide.shapes.add_textbox(Inches(0.5), Inches(0.1), Inches(8), Inches(0.2))
     tf = textbox.text_frame
     p = tf.add_paragraph()
     p.text = f"Mat {row['Mat']}"
@@ -138,101 +166,66 @@ def add_summary_slide(prs, df):
         table.cell(i, 5).text = f"{row['ratio_5_to_20']:.2f}"
         table.cell(i, 6).text = f"{row['empty_avg_clean']:.2e}"
 
-def add_plot_slide(prs, df):
-    slide = prs.slides.add_slide(prs.slide_layouts[5])
-    slide.shapes.title.text = "Final Test Summary Graphs"
+def save_excel_with_summary(df, base_folder):
+    with pd.ExcelWriter(base_folder, engine='xlsxwriter') as writer:
+        # Write full data
+        df.to_excel(writer, sheet_name='Summary', index=False)
+        workbook  = writer.book
+        worksheet = writer.sheets['Summary']
 
-    fig, ax = plt.subplots(figsize=(10, 6), dpi=300)
-    for w in ["5lb_response", "10lb_response", "20lb_response"]:
-        ax.plot(df["Mat"], df[w], label=w)
-    ax.set_xlabel("Mat")
-    ax.set_ylabel("Mean Response")
-    ax.legend()
-    ax.grid(True)
+        # Set column widths for readability
+        for i, col in enumerate(df.columns):
+            column_width = max(len(str(col)), 15)
+            worksheet.set_column(i, i, column_width)
 
-    img_stream = io.BytesIO()
-    fig.savefig(img_stream, format='png', dpi=300, bbox_inches='tight')
-    plt.close(fig)
-    img_stream.seek(0)
+        # Create chart for response values
+        chart_resp = workbook.add_chart({'type': 'line'})
+        chart_abs = workbook.add_chart({'type': 'line'})
 
-    slide.shapes.add_picture(img_stream, Inches(0.5), Inches(1), width=Inches(9))
+        def add_series(chart, name, col_index, color):
+            chart.add_series({
+                'name':       ["Summary", 0, col_index],
+                'categories': ["Summary", 1, 0, len(df), 0],
+                'values':     ["Summary", 1, col_index, len(df), col_index],
+                'line':       {'color': color},
+            })
+
+        # Define color palette
+        colors = {
+            "20lb_response": 'red',
+            "10lb_response": 'blue',
+            "5lb_response": 'green',
+            "20lb_avg_val": 'darkred',
+            "10lb_avg_val": 'darkblue',
+            "5lb_avg_val": 'darkgreen'
+        }
+
+        # Add response series
+        for col in ["20lb_response", "10lb_response", "5lb_response"]:
+            add_series(chart_resp, col, df.columns.get_loc(col), colors[col])
+
+        chart_resp.set_title({'name': 'Weight Responses'})
+        chart_resp.set_x_axis({'name': 'Mat'})
+        chart_resp.set_y_axis({'name': 'Mean Response'})
+        worksheet.insert_chart('J2', chart_resp, {'x_scale': 1.5, 'y_scale': 1.5})
+
+        # Add absolute value series
+        for col in ["20lb_avg_val", "10lb_avg_val", "5lb_avg_val"]:
+            add_series(chart_abs, col, df.columns.get_loc(col), colors[col])
+
+        chart_abs.set_title({'name': 'Absolute Capacitance Values'})
+        chart_abs.set_x_axis({'name': 'Mat'})
+        chart_abs.set_y_axis({'name': 'Mean Capacitance'})
+        worksheet.insert_chart('J20', chart_abs, {'x_scale': 1.5, 'y_scale': 1.5})
 
 def create_ppt_report(df, base_folder):
     prs = Presentation()
     for _, row in df.iterrows():
         add_mat_slide(prs, row, base_folder)
     add_summary_slide(prs, df)
-    add_plot_slide(prs, df)
     output_path = Path(base_folder) / "final_test_analysis_report.pptx"
     prs.save(output_path)
     print(f"PowerPoint report saved to {output_path}")
-
-def save_excel_with_charts(df, output_path):
-    # Save Excel with charts using xlsxwriter engine
-    with pd.ExcelWriter(output_path, engine='xlsxwriter') as writer:
-        df.to_excel(writer, sheet_name='Summary', index=False)
-        workbook  = writer.book
-        worksheet = writer.sheets['Summary']
-
-        num_rows = len(df) + 1  # including header
-
-        # Helper to get Excel column letter (0 -> A, 1 -> B, ...)
-        def col_letter(n):
-            return chr(ord('A') + n)
-
-        # Chart 1: weight responses (20lb, 10lb, 5lb)
-        chart1 = workbook.add_chart({'type': 'line'})
-        categories = f"=Summary!$A$2:$A${num_rows}"  # Mat names in col A
-
-        # Columns of responses - adjust these indices if your df columns order change
-        col_20lb = df.columns.get_loc("20lb_response")
-        col_10lb = df.columns.get_loc("10lb_response")
-        col_5lb = df.columns.get_loc("5lb_response")
-
-        chart1.add_series({
-            'name':       '20lb_response',
-            'categories': categories,
-            'values':     f"=Summary!${col_letter(col_20lb)}$2:${col_letter(col_20lb)}${num_rows}",
-            'line':       {'color': 'red'},
-        })
-        chart1.add_series({
-            'name':       '10lb_response',
-            'categories': categories,
-            'values':     f"=Summary!${col_letter(col_10lb)}$2:${col_letter(col_10lb)}${num_rows}",
-            'line':       {'color': 'blue'},
-        })
-        chart1.add_series({
-            'name':       '5lb_response',
-            'categories': categories,
-            'values':     f"=Summary!${col_letter(col_5lb)}$2:${col_letter(col_5lb)}${num_rows}",
-            'line':       {'color': 'green'},
-        })
-        chart1.set_title({'name': 'Weight Responses'})
-        chart1.set_x_axis({'name': 'Mat'})
-        chart1.set_y_axis({'name': 'Mean Response', 'major_gridlines': {'visible': False}})
-        worksheet.insert_chart('J2', chart1, {'x_scale': 1.5, 'y_scale': 1.5})
-
-        # Chart 2: Ratios (ratio_10_to_20, ratio_5_to_20)
-        chart2 = workbook.add_chart({'type': 'line'})
-        col_ratio10 = df.columns.get_loc("ratio_10_to_20")
-        col_ratio5 = df.columns.get_loc("ratio_5_to_20")
-
-        chart2.add_series({
-            'name': 'Ratio 10lb / 20lb',
-            'categories': categories,
-            'values': f"=Summary!${col_letter(col_ratio10)}$2:${col_letter(col_ratio10)}${num_rows}",
-            'line': {'color': 'orange'},
-        })
-        chart2.add_series({
-            'name': 'Ratio 5lb / 20lb',
-            'categories': categories,
-            'values': f"=Summary!${col_letter(col_ratio5)}$2:${col_letter(col_ratio5)}${num_rows}",
-            'line': {'color': 'purple'},
-        })
-        chart2.set_title({'name': 'Response Ratios'})
-        chart2.set_x_axis({'name': 'Mat'})
-        chart2.set_y_axis({'name': 'Ratio'})
-        worksheet.insert_chart('J20', chart2, {'x_scale': 1.5, 'y_scale': 1.5})
 
 def analyze_all(base_folder, debug=False):
     results = []
@@ -246,11 +239,10 @@ def analyze_all(base_folder, debug=False):
                 print(f"Error in {subfolder.name}: {e}")
 
     df = pd.DataFrame(results)
-    xlsx_path = Path(base_folder) / "final_test_analysis_summary.xlsx"
-    save_excel_with_charts(df, xlsx_path)
-    print(f"Excel report saved to {xlsx_path}")
-
     create_ppt_report(df, base_folder)
+    xlsx_path = Path(base_folder) / "final_test_analysis_summary.xlsx"
+    save_excel_with_summary(df, xlsx_path)
+    print(f"Excel summary saved to {xlsx_path}")
 
 if __name__ == "__main__":
     import argparse
