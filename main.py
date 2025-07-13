@@ -269,6 +269,45 @@ def add_summary_slide(prs, df):
             table.cell(i, 7).text = f"{row['empty_avg_clean']:.2e}"
 
 
+def add_average_value_chart_slide(prs, df):
+    # ממיין את הדאטה לפי מספר מזרן כערך מספרי
+    df_sorted = df.copy()
+    df_sorted["MatNum"] = df_sorted["Mat"].astype(int)
+    df_sorted = df_sorted.sort_values("MatNum")
+
+    slide = prs.slides.add_slide(prs.slide_layouts[6])
+
+    # כותרת השקופית
+    title_box = slide.shapes.add_textbox(Inches(0.5), Inches(0.1), Inches(8), Inches(0.4))
+    tf = title_box.text_frame
+    p = tf.add_paragraph()
+    p.text = "Average Capacitance Trend by Mat Number"
+    p.font.size = Pt(24)
+    p.font.bold = True
+    p.alignment = PP_PARAGRAPH_ALIGNMENT.CENTER
+
+    # הכנת הנתונים לגרף קווי
+    chart_data = CategoryChartData()
+    chart_data.categories = list(df_sorted["MatNum"])
+    chart_data.add_series("20lb avg", list(df_sorted["20lb_avg_val"]))
+    chart_data.add_series("10lb avg", list(df_sorted["10lb_avg_val"]))
+    chart_data.add_series("5lb avg", list(df_sorted["5lb_avg_val"]))
+
+    x, y = Inches(0.5), Inches(1.0)
+    width, height = Inches(9), Inches(4.5)
+    chart = slide.shapes.add_chart(
+        XL_CHART_TYPE.LINE_MARKERS,
+        x, y, width, height,
+        chart_data
+    ).chart
+
+    # עיצוב
+    chart.has_legend = True
+    chart.legend.position = XL_LEGEND_POSITION.BOTTOM
+    chart.chart_title.text_frame.text = "Average Capacitance by Mat Number"
+    chart.value_axis.has_major_gridlines = True
+
+
 def add_color_summary_slide(prs, color_counters):
     slide = prs.slides.add_slide(prs.slide_layouts[6])
     textbox = slide.shapes.add_textbox(Inches(0.5), Inches(0.1), Inches(8), Inches(0.4))
@@ -314,6 +353,7 @@ def create_ppt_report(df, base_folder, color_counters):
     for _, row in df.iterrows():
         add_mat_slide(prs, row, base_folder)
     add_summary_slide(prs, df)
+    add_average_value_chart_slide(prs, df)
     add_color_summary_slide(prs, color_counters)
     output_path = Path(base_folder) / "final_test_analysis_report.pptx"
     prs.save(output_path)
