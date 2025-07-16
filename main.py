@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import pandas as pd
 import numpy as np
 from pathlib import Path
@@ -109,7 +111,7 @@ def analyze_sheet(folder_path, debug=False):
     spots, labeled = find_weight_spots(mat_diff)
     sorted_spots = sorted(spots, key=lambda p: p[0])  # sort by row (y)
 
-    weights_lbs = [20, 10, 5]
+    weights_lbs = [5, 10, 20]
     weight_responses = {}
 
     for w, (y, x, _) in zip(weights_lbs, sorted_spots):
@@ -177,43 +179,51 @@ def add_mat_slide(prs, row, base_folder):
         table1.columns[1].width = Inches(2.5)
         table1.cell(0, 0).text = "Baseline avg (no weight)"
         table1.cell(0, 1).text = f"{row['empty_avg_clean']:.2e}"
-        table1.cell(1, 0).text = "20lb: avr / max [response]"
-        table1.cell(1, 1).text = f"{row['20lb_response']:.2e} / {row['20lb_max']:.2e}"
+        table1.cell(1, 0).text = "5lb: avr / max [response]"
+        table1.cell(1, 1).text = f"{row['5lb_response']:.2e} / {row['5lb_max']:.2e}"
         table1.cell(2, 0).text = "10lb: avr / max [response]"
         table1.cell(2, 1).text = f"{row['10lb_response']:.2e} / {row['10lb_max']:.2e}"
-        table1.cell(3, 0).text = "5lb: avr / max [response]"
-        table1.cell(3, 1).text = f"{row['5lb_response']:.2e} / {row['5lb_max']:.2e}"
+        table1.cell(3, 0).text = "20lb: avr / max [response]"
+        table1.cell(3, 1).text = f"{row['20lb_response']:.2e} / {row['20lb_max']:.2e}"
         table1.cell(4, 0).text = "Ratio 10lb / 20lb"
         table1.cell(4, 1).text = f"{row['ratio_10_to_20']:.2f}"
         table1.cell(5, 0).text = "Ratio 5lb / 20lb"
         table1.cell(5, 1).text = f"{row['ratio_5_to_20']:.2f}"
 
-        # טבלה 2 – ערכים מוחלטים + צבע
-        table2 = slide.shapes.add_table(3, 3, Inches(0.5), Inches(5.1), Inches(4.5), Inches(1.0)).table
+        # טבלה 2 – ערכים מוחלטים + צבע עם שורה עליונה של כותרות
+        table2 = slide.shapes.add_table(4, 3, Inches(0.5), Inches(5.1), Inches(4.5), Inches(1.3)).table
         table2.columns[0].width = Inches(2)
         table2.columns[1].width = Inches(2.5)
-        table2.columns[2].width = Inches(1.0)
+        table2.columns[2].width = Inches(1.5)
 
-        table2.cell(0, 0).text = "20lb value (avg / max)"
-        table2.cell(0, 1).text = f"{row['20lb_avg_val']:.2e} / {row['20lb_max_val']:.2e}"
-        table2.cell(0, 2).text = row["20lb_color"]
-        color_cell(table2.cell(0, 2), row["20lb_color"])
+        # כותרות
+        table2.cell(0, 0).text = "Weight"
+        table2.cell(0, 1).text = "avg / max"
+        table2.cell(0, 2).text = "Max color"
 
-        table2.cell(1, 0).text = "10lb value (avg / max)"
-        table2.cell(1, 1).text = f"{row['10lb_avg_val']:.2e} / {row['10lb_max_val']:.2e}"
-        table2.cell(1, 2).text = row["10lb_color"]
-        color_cell(table2.cell(1, 2), row["10lb_color"])
+        # שורה 1
+        table2.cell(1, 0).text = "5lb"
+        table2.cell(1, 1).text = f"{row['5lb_avg_val']:.2e} / {row['5lb_max_val']:.2e}"
+        table2.cell(1, 2).text = row["5lb_color"]
+        color_cell(table2.cell(1, 2), row["5lb_color"])
 
-        table2.cell(2, 0).text = "5lb value (avg / max)"
-        table2.cell(2, 1).text = f"{row['5lb_avg_val']:.2e} / {row['5lb_max_val']:.2e}"
-        table2.cell(2, 2).text = row["5lb_color"]
-        color_cell(table2.cell(2, 2), row["5lb_color"])
+        # שורה 2
+        table2.cell(2, 0).text = "10lb"
+        table2.cell(2, 1).text = f"{row['10lb_avg_val']:.2e} / {row['10lb_max_val']:.2e}"
+        table2.cell(2, 2).text = row["10lb_color"]
+        color_cell(table2.cell(2, 2), row["10lb_color"])
+
+        # שורה 3
+        table2.cell(3, 0).text = "20lb"
+        table2.cell(3, 1).text = f"{row['20lb_avg_val']:.2e} / {row['20lb_max_val']:.2e}"
+        table2.cell(3, 2).text = row["20lb_color"]
+        color_cell(table2.cell(3, 2), row["20lb_color"])
 
         # תמונה
         folder = Path(base_folder) / row["Mat"]
         image_file = folder / row["weight_file"].replace("_rawData.csv", "_heatmap.png")
         if image_file.exists():
-            pic = slide.shapes.add_picture(str(image_file), Inches(6), Inches(0.5), width=Inches(3))
+            pic = slide.shapes.add_picture(str(image_file), Inches(6.75), Inches(0.5), width=Inches(3))
             pic.top = prs.slide_height - pic.height
 
         # כותרת
@@ -318,18 +328,39 @@ def add_color_summary_slide(prs, color_counters):
     p.font.bold = True
     p.alignment = PP_PARAGRAPH_ALIGNMENT.CENTER
 
+    # צבעים בפועל
+    color_map = {
+        "Red": RGBColor(255, 0, 0),
+        "Orange": RGBColor(255, 165, 0),
+        "Yellow": RGBColor(255, 255, 0),
+        "Green": RGBColor(0, 128, 0),
+        "Light Blue": RGBColor(173, 216, 230),
+        "Dark Blue": RGBColor(0, 0, 139),
+        "White": RGBColor(255, 255, 255),
+        "None": RGBColor(200, 200, 200)
+    }
+
+    # הצבעים המצופים לפי משקל
+    expected_colors = {
+        5: "Light Blue",
+        10: "Green",
+        20: "Orange"
+    }
+
     left_positions = [Inches(0.5), Inches(3.5), Inches(6.5)]
-    chart_width = Inches(2.5)
+    chart_width = Inches(3.15)
     chart_height = Inches(3)
 
-    for i, weight in enumerate([20, 10, 5]):
+    for i, weight in enumerate([5, 10, 20]):
         counts = color_counters[f"{weight}lb"]
         if not counts:
             continue
 
         chart_data = CategoryChartData()
-        chart_data.categories = list(counts.keys())
-        chart_data.add_series(f"{weight}lb", list(counts.values()))
+        labels = list(counts.keys())
+        values = list(counts.values())
+        chart_data.categories = labels
+        chart_data.add_series(f"{weight}lb", values)
 
         x, y = left_positions[i], Inches(1.2)
         chart = slide.shapes.add_chart(
@@ -344,8 +375,93 @@ def add_color_summary_slide(prs, color_counters):
         chart.has_legend = True
         chart.legend.include_in_layout = False
         chart.legend.position = XL_LEGEND_POSITION.RIGHT
+
+        # ✅ הוספת הצבע המצופה לכותרת
+        expected = expected_colors[weight]
         chart.has_title = True
-        chart.chart_title.text_frame.text = f"{weight}lb"
+        chart.chart_title.text_frame.clear()
+        p = chart.chart_title.text_frame.paragraphs[0]
+        p.text = f"{weight}lb\n(Expected: {expected})"
+        p.font.size = Pt(18)
+
+        # 🎨 צביעת פרוסות הפאי
+        for j, point in enumerate(chart.plots[0].series[0].points):
+            label = labels[j]
+            rgb = color_map.get(label, RGBColor(128, 128, 128))  # ברירת מחדל אפור
+            point.format.fill.solid()
+            point.format.fill.fore_color.rgb = rgb
+
+        thresholds = [
+            ("White", "0"),
+            ("Dark Blue", "4"),
+            ("Light Blue", "15"),
+            ("Green", "30"),
+            ("Yellow", "45"),
+            ("Orange", "60"),
+            ("Red", "75")
+        ]
+
+        # הוספת הטבלה (7 שורות, 2 עמודות)
+        # יצירת הטבלה במקום מבוקש בגודל מתאים
+        table_shape = slide.shapes.add_table(rows=7, cols=2, left=Inches(0.5), top=Inches(4.5), width=Inches(2.4),
+                                             height=Inches(2.0))
+        table = table_shape.table
+
+        # הגדרת רוחב עמודות
+        table.columns[0].width = Inches(1.4)
+        table.columns[1].width = Inches(1.2)
+
+        # מילוי טבלה
+        for i, (color_name, value) in enumerate(thresholds):
+            cell = table.cell(i, 0)
+            cell.text = color_name
+            cell.fill.solid()
+            cell.fill.fore_color.rgb = color_map[color_name]
+
+            # להפוך את הטקסט בלבן אם הרקע כהה
+            if color_name in {"Red", "Dark Blue", "Green"}:
+                for paragraph in cell.text_frame.paragraphs:
+                    for run in paragraph.runs:
+                        run.font.color.rgb = RGBColor(255, 255, 255)
+            else:
+                for paragraph in cell.text_frame.paragraphs:
+                    for run in paragraph.runs:
+                        run.font.color.rgb = RGBColor(0, 0, 0)
+
+            table.cell(i, 1).text = value
+
+    # יצירת הטבלה החדשה (4 שורות, 4 עמודות)
+    table_shape2 = slide.shapes.add_table(rows=4, cols=4, left=Inches(3.2), top=Inches(5.7), width=Inches(5.2),
+                                          height=Inches(1.5))
+    table2 = table_shape2.table
+
+    # כותרות
+    headers = ["libra", "kg", "cm^2", "mmHg"]
+    for col, title in enumerate(headers):
+        table2.cell(0, col).text = title
+
+    # נתונים
+    data = [
+        [5, "2.268", "100", 16.682],
+        [10, "4.5359", "100", 33.364],
+        [20, "9.0718", "100", 66.729]
+    ]
+
+    # מילוי נתונים
+    for row_idx, row_data in enumerate(data, start=1):
+        for col_idx, value in enumerate(row_data):
+            cell = table2.cell(row_idx, col_idx)
+            cell.text = str(value)
+            # צבע לפי mmHg (עמודה אחרונה בלבד)
+            if col_idx == 3:
+                color_name = pressure_to_color(float(value))
+                cell.fill.solid()
+                cell.fill.fore_color.rgb = color_map[color_name]
+                # טקסט לבן אם כהה
+                if color_name in {"Red", "Blue"}:
+                    for paragraph in cell.text_frame.paragraphs:
+                        for run in paragraph.runs:
+                            run.font.color.rgb = RGBColor(255, 255, 255)
 
 
 def create_ppt_report(df, base_folder, color_counters):
@@ -355,7 +471,12 @@ def create_ppt_report(df, base_folder, color_counters):
     add_summary_slide(prs, df)
     add_average_value_chart_slide(prs, df)
     add_color_summary_slide(prs, color_counters)
-    output_path = Path(base_folder) / "final_test_analysis_report.pptx"
+    # קבלת התאריך הנוכחי במחרוזת
+    date_str = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+    # יצירת שם קובץ עם התאריך
+    output_path = Path(base_folder) / f"final_test_analysis_report_{date_str}.pptx"
+
     prs.save(output_path)
     print(f"PowerPoint report saved to {output_path}")
 
@@ -369,7 +490,7 @@ def analyze_all(base_folder, debug=False):
                 print(f"Analyzing {subfolder.name}...")
                 result = analyze_sheet(subfolder, debug=debug)
                 results.append(result)
-                for w in [20, 10, 5]:
+                for w in [5, 10, 20]:
                     color = result[f"{w}lb_color"]
                     color_counters[f"{w}lb"][color] += 1
             except Exception as e:
